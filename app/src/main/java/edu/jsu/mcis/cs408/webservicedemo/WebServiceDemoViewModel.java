@@ -22,13 +22,14 @@ public class WebServiceDemoViewModel extends ViewModel {
 
     private static final String TAG = "WebServiceDemoViewModel";
 
-    private static final String GET_URL = "http://jsonplaceholder.typicode.com/todos/1";
-    private static final String POST_URL = "http://jsonplaceholder.typicode.com/posts";
+    private static final String GET_URL = "http://ec2-3-143-211-101.us-east-2.compute.amazonaws.com/CS408_SimpleChat/Chat";
+    private static final String POST_URL = "http://ec2-3-143-211-101.us-east-2.compute.amazonaws.com/CS408_SimpleChat/Chat";
 
     private MutableLiveData<JSONObject> jsonData;
+    private String message;
 
     private final ExecutorService requestThreadExecutor;
-    private final Runnable httpGetRequestThread, httpPostRequestThread;
+    private final Runnable httpGetRequestThread, httpPostRequestThread, httpDeleteRequestThread;
     private Future<?> pending;
 
     public WebServiceDemoViewModel() {
@@ -55,6 +56,28 @@ public class WebServiceDemoViewModel extends ViewModel {
 
         };
 
+        httpDeleteRequestThread = new Runnable() {
+
+            @Override
+            public void run() {
+
+                /* If a previous request is still pending, cancel it */
+
+                if (pending != null) { pending.cancel(true); }
+
+                /* Begin new request now, but don't wait for it */
+
+                try {
+                    pending = requestThreadExecutor.submit(new HTTPRequestTask("DELETE", GET_URL));
+                }
+                catch (Exception e) { Log.e(TAG, " Exception: ", e); }
+
+            }
+
+        };
+
+
+
         httpPostRequestThread = new Runnable() {
 
             @Override
@@ -77,6 +100,10 @@ public class WebServiceDemoViewModel extends ViewModel {
 
     }
 
+    public void setMessage(String msg){
+        this.message = msg;
+    }
+
     // Start GET Request (called from Activity)
 
     public void sendGetRequest() {
@@ -88,6 +115,8 @@ public class WebServiceDemoViewModel extends ViewModel {
     public void sendPostRequest() {
         httpPostRequestThread.run();
     }
+
+    public void sendDeleteRequest(){httpDeleteRequestThread.run();}
 
     // Setter / Getter Methods for JSON LiveData
 
@@ -113,6 +142,9 @@ public class WebServiceDemoViewModel extends ViewModel {
             this.method = method;
             this.urlString = urlString;
         }
+
+
+
 
         @Override
         public void run() {
@@ -148,24 +180,132 @@ public class WebServiceDemoViewModel extends ViewModel {
                 conn.setReadTimeout(10000);    /* ten seconds */
                 conn.setConnectTimeout(15000); /* fifteen seconds */
                 conn.setRequestMethod(method);
+
                 conn.setDoInput(true);
 
                 /* Add Request Parameters (if any) */
 
                 if (method.equals("POST") ) {
 
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setRequestProperty("Accept", "application/json");
                     conn.setDoOutput(true);
 
-                    // Create example parameters (these will be echoed back by the API)
-
-                    String p = "name=Jack+Flack&userid=2001";
+                    JSONObject a = new JSONObject();
 
                     // Write parameters to request body
 
-                    OutputStream out = conn.getOutputStream();
-                    out.write(p.getBytes());
-                    out.flush();
-                    out.close();
+                    a.put("name", "Sylveon");
+//                    String message =
+                    // get message somehow
+                    a.put("message", message);
+                    try(OutputStream os = conn.getOutputStream()) {
+                        byte[] input = a.toString().getBytes("utf-8");
+                        os.write(input, 0, input.length);
+                    }
+                    Log.i("JSON", "closed out");
+
+                }
+
+                /* Send Request */
+
+                conn.connect();
+
+                /* Check if task has been interrupted */
+
+                if (Thread.interrupted())
+                    throw new InterruptedException();
+
+                /* Get Reader for Results */
+
+                int code = conn.getResponseCode();
+
+                if (code == HttpsURLConnection.HTTP_OK || code == HttpsURLConnection.HTTP_CREATED) {
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+
+                    /* Read Response Into StringBuilder */
+
+                    line = reader.readLine();
+                    JSONObject json = new JSONObject(line);
+                    Log.i("JSON", line);
+                    r.append(line);
+
+                }
+
+                /* Check if task has been interrupted */
+
+                if (Thread.interrupted())
+                    throw new InterruptedException();
+
+                /* Parse Response as JSON */
+
+                results = new JSONObject(r.toString());
+
+            }
+            catch (Exception e) {
+                Log.e(TAG, " Exception: ", e);
+            }
+            finally {
+                if (conn != null) { conn.disconnect(); }
+            }
+
+            /* Finished; Log and Return Results */
+
+            Log.d(TAG, " JSON: " + r.toString());
+
+            return results;
+
+        }
+        private JSONObject doRequest(String urlString, String message) {
+
+            StringBuilder r = new StringBuilder();
+            String line;
+
+            HttpURLConnection conn = null;
+            JSONObject results = null;
+
+            /* Log Request Data */
+
+            try {
+
+                /* Check if task has been interrupted */
+
+                if (Thread.interrupted())
+                    throw new InterruptedException();
+
+                /* Create Request */
+
+                URL url = new URL(urlString);
+
+                conn = (HttpURLConnection)url.openConnection();
+
+                conn.setReadTimeout(10000);    /* ten seconds */
+                conn.setConnectTimeout(15000); /* fifteen seconds */
+                conn.setRequestMethod(method);
+
+                conn.setDoInput(true);
+
+                /* Add Request Parameters (if any) */
+
+                if (method.equals("POST") ) {
+
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setDoOutput(true);
+
+                    JSONObject a = new JSONObject();
+
+                    // Write parameters to request body
+
+                    a.put("name", "Sylveon");
+//                    String message =
+                    a.put("message", message);
+                    try(OutputStream os = conn.getOutputStream()) {
+                        byte[] input = a.toString().getBytes("utf-8");
+                        os.write(input, 0, input.length);
+                    }
+                    Log.i("JSON", "closed out");
 
                 }
 
@@ -222,6 +362,8 @@ public class WebServiceDemoViewModel extends ViewModel {
 
         }
 
+
     }
+
 
 }

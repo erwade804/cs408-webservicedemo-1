@@ -3,12 +3,16 @@ package edu.jsu.mcis.cs408.webservicedemo;
 import android.os.Bundle;
 import android.view.View;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
+
+import java.util.Timer;
+import java.util.TimerTask;
 
 import edu.jsu.mcis.cs408.webservicedemo.databinding.ActivityMainBinding;
 
@@ -33,8 +37,13 @@ public class MainActivity extends AppCompatActivity {
         final Observer<JSONObject> jsonObserver = new Observer<JSONObject>() {
             @Override
             public void onChanged(@Nullable final JSONObject newJSON) {
-                if (newJSON != null)
-                    setOutputText(newJSON.toString());
+                if (newJSON != null) {
+                    try {
+                        setOutputText(newJSON.getString("messages"));
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         };
 
@@ -44,10 +53,20 @@ public class MainActivity extends AppCompatActivity {
 
         // Set Button Listeners (to initiate GET/POST requests)
 
-        binding.getButton.setOnClickListener(new View.OnClickListener() {
+
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                //your method
+                model.sendGetRequest();
+            }
+        }, 0, 1000);
+
+
+        binding.deleteButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                model.sendGetRequest();
+                model.sendDeleteRequest();
             }
         });
 
@@ -56,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
         binding.postButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                model.setMessage(binding.editTextTextPersonName.getText().toString());
                 model.sendPostRequest();
             }
         });
@@ -65,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
     // Update Output Text
 
     private void setOutputText(String s) {
+
         binding.output.setText(s);
     }
 
